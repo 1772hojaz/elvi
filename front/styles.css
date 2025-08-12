@@ -1,0 +1,41 @@
+body {
+    background-color: #1a1a1a; /* High-contrast dark background */
+    color: #ffffff; /* White text */
+    font-family: Arial, sans-serif;
+    font-size: 24px; /* Large text */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+h1 {
+    font-size: 36px;
+}
+
+button {
+    background-color: #000000;
+    color: #ffffff;
+    border: 2px solid #ffffff;
+    padding: 20px;
+    font-size: 24px;
+    cursor: pointer;
+    width: 200px;
+    height: 80px; /* Large touch target */
+    border-radius: 8px;
+}
+
+button:focus {
+    outline: 3px solid #00ff00; /* High-contrast focus */
+}
+
+#selectedFloor {
+    margin-top: 20px;
+}

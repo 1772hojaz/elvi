@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Accessible Elevator</title>
+<style>
+  body {
+    background-color: #1a1a1a;
+    color: #ffffff;
+    font-family: Arial, sans-serif;
+    font-size: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+  }
+  header {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  h1 {
+    font-size: 36px;
+  }
+  button {
+    background-color: #000000;
+    color: #ffffff;
+    border: 2px solid #ffffff;
+    padding: 20px;
+    font-size: 24px;
+    cursor: pointer;
+    width: 220px;
+    height: 80px;
+    border-radius: 8px;
+    transition: background-color 0.2s ease;
+  }
+  button:hover {
+    background-color: #222;
+  }
+  button:focus {
+    outline: 3px solid #00ff00;
+  }
+  #selectedFloor {
+    margin-top: 20px;
+    font-size: 28px;
+    font-weight: bold;
+    color: #00ffcc;
+  }
+  #errorMsg {
+    margin-top: 15px;
+    color: #ff4d4d;
+    font-size: 18px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Accessible Elevator</h1>
+</header>
+<main>
+  <button id="voiceButton" aria-label="Start voice input for floor selection" aria-pressed="false">
+    Start Voice Input
+  </button>
+  <div id="selectedFloor" aria-live="polite">No floor selected</div>
+  <div id="errorMsg" aria-live="assertive"></div>
+</main>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const voiceButton = document.getElementById('voiceButton');
+  const selectedFloorDiv = document.getElementById('selectedFloor');
+  const errorMsg = document.getElementById('errorMsg');
+
+  let mediaRecorder = null;
+  let audioChunks = [];
+  let isListening = false;
+
+  const speak = (text) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.9;
+    utterance.volume = 1.0;
+    utterance.lang = 'en-US';
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  };
+
+  speak('Welcome to the accessible elevator app. Press the button to start voice input.');
+
+  voiceButton.addEventListener('click', async () => {
+    errorMsg.textContent = '';
+    if (isListening) {
+      mediaRecorder.stop();
+      isListening = false;
+      voiceButton.textContent = 'Start Voice Input';
+      voiceButton.setAttribute('aria-pressed', 'false');
+      speak('Voice input stopped.');
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) audioChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+          await sendAudioToAPI(audioBlob);
+        };
+
+        mediaRecorder.start();
+        isListening = true;
+        voiceButton.textContent = 'Stop Listening';
+        voiceButton.setAttribute('aria-pressed', 'true');
+        speak('Please say the floor number now.');
+      } catch (e) {
+        showError('Microphone access denied or unavailable.');
+        speak('Error accessing microphone.');
+      }
+    }
+  });
+
+  async function sendAudioToAPI(audioBlob) {
+    try {
+      const formData = new FormData();
+      formData.append('file', audioBlob, 'audio.wav');
+
+      const response = await fetch('http://127.0.0.1:8000/transcribe', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
+
+      const result = await response.json();
+
+      if (result.floor_number != null) {
+        selectFloor(result.floor_number);
+      } else {
+        speak(result.message || 'No valid floor number recognized.');
+      }
+    } catch (e) {
+      showError('Error sending audio to server.');
+      speak('Error processing voice input.');
+    }
+  }
+
+  function selectFloor(floor) {
+    selectedFloorDiv.textContent = `Selected: Floor ${floor}`;
+    selectedFloorDiv.setAttribute('aria-label', `Selected floor: ${floor}`);
+    speak(`Selected floor ${floor}`);
+    console.log(`📡 Sending TCP/Bluetooth command: FLOOR:${floor}`);
+  }
+
+  function showError(message) {
+    errorMsg.textContent = message;
+  }
+
+  // WebSocket to update floor from backend
+  const socket = new WebSocket("ws://localhost:8080");
+  socket.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.floor !== undefined) {
+        selectedFloorDiv.textContent = `Current: Floor ${data.floor}`;
+        selectedFloorDiv.setAttribute('aria-label', `Current floor: ${data.floor}`);
+      }
+    } catch (err) {
+      console.error("Invalid data from WebSocket:", event.data);
+    }
+  };
+  socket.onerror = () => {
+    console.warn("WebSocket connection failed.");
+  };
+});
+</script>
+</body>
+</html>
