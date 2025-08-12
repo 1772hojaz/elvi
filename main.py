@@ -24,7 +24,7 @@ app.add_middleware(
 )
 
 try:
-    client = Groq(api_key=os.environ.get("GROQ_API_KEY", "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"))
+    client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
     logger.info("Groq client initialized successfully")
 except Exception as e:
     logger.exception("Failed to initialize Groq client")
